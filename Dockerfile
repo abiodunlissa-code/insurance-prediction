@@ -34,7 +34,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 #    re-downloading every package - this makes rebuilds much faster
 #    whenever you only change app.py.
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Install build tools needed for compiling packages like spacy and lightgbm
+# We'll remove them after to keep the final image small
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential gcc g++ && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install pycaret without its dependencies to avoid pandas-profiling==2.3.0 conflict,
+# then install compatible dependencies manually
+RUN pip install --no-cache-dir --no-deps pycaret==1.0.0 && \
+    pip install --no-cache-dir pandas==1.1.5 numpy==1.19.5 scipy==1.5.4 scikit-learn==0.24.2 \
+    joblib==0.17.0 fastapi==0.104.1 uvicorn[standard]==0.24.0 \
+    python-multipart==0.0.6 jinja2==3.1.2 ipywidgets \
+    pyod xgboost==0.90 yellowbrick==1.0.1 umap-learn lightgbm datefinder
 
 # 5. Now copy the rest of the application code (this layer changes often,
 #    so it's placed after the slow dependency-install layer).
@@ -42,7 +54,7 @@ COPY . .
 
 # 6. Document which port the app listens on. This doesn't actually
 #    publish the port - it's metadata for humans/tools; the real
-#    port mapping happens with `docker run -p` or the hosting platform.
+#    port mapping happens with docker run -p or the hosting platform.
 EXPOSE 8000
 
 # 7. The command that runs when the container starts.
